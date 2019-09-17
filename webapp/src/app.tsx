@@ -492,7 +492,7 @@ export class ProjectView
 
     openPreviousEditor() {
         // try history first!
-        const hist = this.settings.fileHistory[1];
+        const hist = this.settings.fileHistory[1]; // todo
         if (hist) {
             const f = pkg.mainEditorPkg().lookupFile(hist.name);
             if (f) {
@@ -834,13 +834,19 @@ export class ProjectView
 
                 if (this.state.showBlocks && this.editor == this.textEditor) this.textEditor.openBlocks();
             })
-            .finally(() => this.updatingEditorFile = false)
+            .finally(() => {
+                this.updatingEditorFile = false
+            })
             .then(() => {
                 // if auto-run is not enable, restart the sim
                 // otherwise, autorun will launch it again
                 if (!this.state.currFile.virtual && simRunning && !this.state.autoRun)
                     this.startSimulator();
-            });
+            })
+            .catch(e => {
+                pxt.reportException(e)
+                throw e
+            })
     }
 
     /**
@@ -1745,6 +1751,8 @@ export class ProjectView
         if (this.editor) this.editor.unloadFileAsync();
         // clear the hash
         pxt.BrowserUtils.changeHash("", true);
+        this.editorFile = undefined;
+        this.editor = undefined;
         this.setStateAsync({
             home: true,
             tracing: undefined,
@@ -1752,7 +1760,8 @@ export class ProjectView
             tutorialOptions: undefined,
             editorState: undefined,
             debugging: undefined,
-            header: undefined
+            header: undefined,
+            currFile: undefined,
         }).then(() => {
             this.allEditors.forEach(e => e.setVisible(false));
             this.homeLoaded();
@@ -2122,6 +2131,11 @@ export class ProjectView
         this.syncPreferredEditor()
         compiler.compileAsync({ native: true, forceEmit: true })
             .then<pxtc.CompileResult>(resp => {
+                if (!this.editor) {
+                    simRestart = false;
+                    return Promise.resolve(null)
+                }
+
                 this.editor.setDiagnostics(this.editorFile, state)
 
                 let fn = pxt.outputName()
